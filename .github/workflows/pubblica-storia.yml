@@ -1,0 +1,51 @@
+# Pubblicazione automatica della storia del WOD.
+#
+# Orari di pubblicazione (ora italiana):
+#   lunedì → venerdì  alle 5:00
+#   sabato e domenica alle 9:00
+#
+# GitHub ragiona in UTC e non sa dell'ora legale, quindi il workflow parte a
+# quattro orari: 03:00 e 04:00 UTC coprono le 5:00 italiane (estate/inverno),
+# 07:00 e 08:00 UTC coprono le 9:00. Lo script pubblica solo nella corsa che
+# in Italia cade all'ora giusta; le altre tre escono subito senza fare niente.
+
+name: Pubblica storia WOD
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+    - cron: "0 4 * * *"
+    - cron: "0 7 * * *"
+    - cron: "0 8 * * *"
+  workflow_dispatch:           # permette di lanciarlo a mano dal sito
+    inputs:
+      data:
+        description: "Data da pubblicare (AAAA-MM-GG). Vuoto = oggi."
+        required: false
+      prova:
+        description: "Solo prova: controlla tutto ma non pubblica"
+        type: boolean
+        default: true
+
+jobs:
+  pubblica:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Pubblica la storia di oggi su Instagram e Facebook
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          IMAGE_BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/stories
+          ORA_FERIALE: "5"
+          ORA_WEEKEND: "9"
+          STORY_DATE: ${{ inputs.data }}
+          DRY_RUN: ${{ inputs.prova && '1' || '' }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+        run: python3 instagram/publish_story.py
