@@ -4,19 +4,15 @@
 #   lunedì → venerdì  alle 5:00
 #   sabato e domenica alle 9:00
 #
-# GitHub ragiona in UTC e non sa dell'ora legale, quindi il workflow parte a
-# quattro orari: 03:00 e 04:00 UTC coprono le 5:00 italiane (estate/inverno),
-# 07:00 e 08:00 UTC coprono le 9:00. Lo script pubblica solo nella corsa che
-# in Italia cade all'ora giusta; le altre tre escono subito senza fare niente.
+# Dal 24/11/26 NON si usano più gli orari di GitHub (`schedule`): GitHub li
+# fa partire con ore di ritardo (il 23/11 alle 12:38, 14:52, 19:49, 20:59) e
+# così la storia non usciva mai. Il workflow viene avviato all'ora esatta da
+# un timer esterno (cron-job.org) tramite le API di GitHub, con prova=false.
+# Vedi instagram/SETUP.md, sezione "Timer esterno".
 
 name: Pubblica storia WOD
 
 on:
-  schedule:
-    - cron: "0 3 * * *"
-    - cron: "0 4 * * *"
-    - cron: "0 7 * * *"
-    - cron: "0 8 * * *"
   workflow_dispatch:           # permette di lanciarlo a mano dal sito
     inputs:
       data:
