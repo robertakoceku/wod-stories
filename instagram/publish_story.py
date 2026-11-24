@@ -46,6 +46,7 @@ corsa che in Italia cade all'ora giusta pubblica, le altre escono subito.
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -114,6 +115,24 @@ def pubblica_instagram(versione, ig_user, token, url_immagine):
     if not cid:
         raise ErroreMeta(f"Nessun id di contenitore nella risposta: {contenitore}")
 
+    # Meta elabora l'immagine in differita: se si pubblica subito risponde
+    # "Media ID is not available" (errore 9007). Si aspetta che il
+    # contenitore sia FINISHED, al massimo per circa 2 minuti.
+    for tentativo in range(24):
+        stato = richiedi(
+            f"{GRAPH}/{versione}/{cid}?"
+            + urllib.parse.urlencode({"fields": "status_code",
+                                      "access_token": token}))
+        codice = stato.get("status_code", "")
+        if codice == "FINISHED":
+            break
+        if codice in ("ERROR", "EXPIRED"):
+            raise ErroreMeta(f"Meta non ha accettato l'immagine: {stato}")
+        time.sleep(5)
+    else:
+        raise ErroreMeta("Il contenitore non è pronto dopo 2 minuti")
+    log("[ok] Instagram: immagine elaborata da Meta")
+
     pubblicato = richiedi(
         f"{GRAPH}/{versione}/{ig_user}/media_publish",
         {"creation_id": cid, "access_token": token},
@@ -130,6 +149,20 @@ def pubblica_facebook(versione, page_id, token, url_immagine):
     Funziona in due tempi: si carica la foto *non pubblicata* (resta invisibile
     sulla Pagina), poi la si trasforma in storia.
     """
+    # Le storie della Pagina vanno pubblicate "come Pagina": serve il token
+    # della Pagina, non quello personale. Si ricava da quello personale.
+    try:
+        info = richiedi(
+            f"{GRAPH}/{versione}/{page_id}?"
+            + urllib.parse.urlencode({"fields": "access_token",
+                                      "access_token": token}))
+        if info.get("access_token"):
+            token = info["access_token"]
+            log("[ok] Facebook: uso il token della Pagina")
+    except ErroreMeta as e:
+        log(f"- Facebook: token della Pagina non ottenuto ({e}); "
+            "provo col token attuale")
+
     log("-> Facebook: carico la foto...")
     foto = richiedi(
         f"{GRAPH}/{versione}/{page_id}/photos",
